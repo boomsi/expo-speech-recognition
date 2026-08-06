@@ -128,6 +128,7 @@ enum CategoryParam: String {
   case playAndRecord
   case multiRoute
 
+  #if os(iOS)
   var avCategory: AVAudioSession.Category {
     switch self {
     case .ambient: return .ambient
@@ -138,6 +139,7 @@ enum CategoryParam: String {
     case .multiRoute: return .multiRoute
     }
   }
+  #endif
 }
 
 enum CategoryOptionsParam: String {
@@ -150,6 +152,7 @@ enum CategoryOptionsParam: String {
   case defaultToSpeaker
   case overrideMutedMicrophoneInterruption
 
+  #if os(iOS)
   var avCategoryOption: AVAudioSession.CategoryOptions {
     switch self {
     case .mixWithOthers: return .mixWithOthers
@@ -167,6 +170,7 @@ enum CategoryOptionsParam: String {
       }
     }
   }
+  #endif
 }
 
 enum ModeParam: String {
@@ -180,6 +184,7 @@ enum ModeParam: String {
   case voiceChat
   case voicePrompt
 
+  #if os(iOS)
   var avMode: AVAudioSession.Mode {
     switch self {
     case .default: return .default
@@ -193,6 +198,7 @@ enum ModeParam: String {
     case .voicePrompt: return .voicePrompt
     }
   }
+  #endif
 }
 
 struct SetCategoryOptions {
