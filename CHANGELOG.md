@@ -1,5 +1,18 @@
 # expo-speech-recognition
 
+## 3.2.0
+
+### Minor Changes
+
+- Add macOS platform support. The `Speech` framework (`SFSpeechRecognizer`) is available on macOS 10.15+, so the core recognition logic is now shared across iOS and macOS via conditional compilation:
+
+  - podspec: add `:osx => '10.15'`
+  - Cross-platform `AppState` replaces iOS-only `UIApplication.State`
+  - `AVAudioSession` setup/observers are iOS-only; macOS manages audio sessions automatically
+  - Microphone permission uses `AVCaptureDevice` on macOS
+  - `#available` checks now include macOS versions
+  - Disable main queue setup to avoid blocking thread init
+
 ## 3.1.3
 
 ### Patch Changes
