@@ -52,7 +52,7 @@ final class ExpoSpeechRecognition: RCTEventEmitter {
 
   @objc
   override static func requiresMainQueueSetup() -> Bool {
-    true
+    false
   }
 
   override func supportedEvents() -> [String]! {

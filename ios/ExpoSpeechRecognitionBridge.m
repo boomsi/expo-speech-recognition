@@ -15,7 +15,7 @@ RCT_EXTERN_METHOD(removeListeners:(double)count)
 
 + (BOOL)requiresMainQueueSetup
 {
-  return YES;
+  return NO;
 }
 
 @end
