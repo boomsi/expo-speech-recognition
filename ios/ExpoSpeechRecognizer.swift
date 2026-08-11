@@ -2,7 +2,35 @@ import AVFoundation
 import Accelerate
 import Foundation
 import Speech
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
+
+/// 跨平台的应用状态，替代 iOS 专有的 UIApplication.State
+enum AppState {
+  case active
+  case inactive
+  case background
+
+  /// 当前 app 是否处于活跃状态
+  var isActive: Bool { self == .active }
+}
+
+/// 跨平台获取当前应用状态
+func currentAppState() -> AppState {
+  #if os(iOS)
+  switch UIApplication.shared.applicationState {
+  case .active: return .active
+  case .inactive: return .inactive
+  case .background: return .background
+  @unknown default: return .inactive
+  }
+  #else
+  return NSApplication.shared.isActive ? .active : .inactive
+  #endif
+}
 
 enum RecognizerError: Error {
   case nilRecognizer
@@ -588,7 +616,7 @@ actor ExpoSpeechRecognizer: ObservableObject {
       request.contextualStrings = contextualStrings
     }
 
-    if #available(iOS 16, *) {
+    if #available(iOS 16, macOS 13, *) {
       request.addsPunctuation = options.addsPunctuation
     }
 
@@ -596,6 +624,7 @@ actor ExpoSpeechRecognizer: ObservableObject {
   }
 
   private static func setupAudioSession(_ options: SetCategoryOptions?) throws {
+    #if os(iOS)
     let audioSession = AVAudioSession.sharedInstance()
 
     if let options: SetCategoryOptions {
@@ -621,6 +650,8 @@ actor ExpoSpeechRecognizer: ObservableObject {
     }
 
     try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+    #endif
+    // macOS 不需要设置 AVAudioSession，音频会话由系统自动管理
   }
 
   private static func audioInputIsBusy(_ recordingFormat: AVAudioFormat) -> Bool {
@@ -719,6 +750,7 @@ actor ExpoSpeechRecognizer: ObservableObject {
   }
 
   private func registerAudioSessionObservers() {
+    #if os(iOS)
     guard audioSessionInterruptionObserver == nil else {
       return
     }
@@ -745,18 +777,19 @@ actor ExpoSpeechRecognizer: ObservableObject {
       object: AVAudioSession.sharedInstance(),
       queue: .main
     ) { [weak self] _ in
-      let appState = UIApplication.shared.applicationState
+      let appState = currentAppState()
       Task { [weak self] in
         let taskState = await self?.task?.state
         await self?.handleAudioRouteChange(taskState: taskState, appState: appState)
       }
     }
-
+    #endif
+    // macOS 没有 AVAudioSession 中断/路由变化通知，无需注册
   }
 
   private func handleAudioRouteChange(
     taskState: SFSpeechRecognitionTaskState?,
-    appState: UIApplication.State
+    appState: AppState
   ) {
     // We only care about route changes when the recognizer is active
     if taskState == .running || taskState == .starting {
@@ -930,7 +963,7 @@ actor ExpoSpeechRecognizer: ObservableObject {
     // See: https://forums.developer.apple.com/forums/thread/762952 for more info
     // This can be emitted multiple times during a continuous session, unlike `result.isFinal` which is only emitted once
     var receivedFinalLikeResult: Bool = receivedFinalResult
-    if #available(iOS 18.0, *), !receivedFinalLikeResult {
+    if #available(iOS 18.0, macOS 15, *), !receivedFinalLikeResult {
       receivedFinalLikeResult = result?.speechRecognitionMetadata?.speechDuration ?? 0 > 0
     }
 
@@ -1051,6 +1084,7 @@ extension SFSpeechRecognizer {
   }
 }
 
+#if os(iOS)
 extension AVAudioSession {
   func hasPermissionToRecord() async -> Bool {
     await withCheckedContinuation { continuation in
@@ -1060,3 +1094,4 @@ extension AVAudioSession {
     }
   }
 }
+#endif

@@ -52,7 +52,7 @@ final class ExpoSpeechRecognition: RCTEventEmitter {
 
   @objc
   override static func requiresMainQueueSetup() -> Bool {
-    true
+    false
   }
 
   override func supportedEvents() -> [String]! {
@@ -282,7 +282,7 @@ final class ExpoSpeechRecognition: RCTEventEmitter {
     let transcriptionSubsequence = result.transcriptions.prefix(maxAlternatives)
     var isFinal = result.isFinal
 
-    if #available(iOS 18.0, *), !isFinal {
+    if #available(iOS 18.0, macOS 15, *), !isFinal {
       isFinal = result.speechRecognitionMetadata?.speechDuration ?? 0 > 0
     }
 
@@ -317,14 +317,14 @@ final class ExpoSpeechRecognition: RCTEventEmitter {
       }
     }
 
-    if #available(iOS 18.0, *), !result.isFinal, isFinal {
+    if #available(iOS 18.0, macOS 15, *), !result.isFinal, isFinal {
       hasSeenFinalResult = true
     }
 
     if isFinal && results.isEmpty {
       var previousResultWasFinal = false
       var previousResultHadTranscriptions = false
-      if #available(iOS 18.0, *), let previousResult {
+      if #available(iOS 18.0, macOS 15, *), let previousResult {
         previousResultWasFinal = previousResult.speechRecognitionMetadata?.speechDuration ?? 0 > 0
         previousResultHadTranscriptions = !previousResult.transcriptions.isEmpty
       }
@@ -361,10 +361,17 @@ final class ExpoSpeechRecognition: RCTEventEmitter {
   }
 
   private func requestMicrophonePermission() async -> [String: Any] {
-    let granted = await withCheckedContinuation { continuation in
+    let granted: Bool = await withCheckedContinuation { continuation in
+      #if os(iOS)
       AVAudioSession.sharedInstance().requestRecordPermission { isGranted in
         continuation.resume(returning: isGranted)
       }
+      #else
+      // macOS: 使用 AVCaptureDevice 请求麦克风访问权限
+      AVCaptureDevice.requestAccess(for: .audio) { isGranted in
+        continuation.resume(returning: isGranted)
+      }
+      #endif
     }
 
     return await getMicrophonePermissionResponse(grantedOverride: granted)
@@ -387,36 +394,59 @@ final class ExpoSpeechRecognition: RCTEventEmitter {
     if let grantedOverride {
       granted = grantedOverride
       status = grantedOverride ? .granted : .denied
-    } else if #available(iOS 17.0, *) {
-      switch AVAudioApplication.shared.recordPermission {
-      case .granted:
-        granted = true
-        status = .granted
-      case .denied:
-        granted = false
-        status = .denied
-      case .undetermined:
-        granted = false
-        status = .undetermined
-      @unknown default:
-        granted = false
-        status = .undetermined
-      }
     } else {
-      switch AVAudioSession.sharedInstance().recordPermission {
-      case .granted:
+      #if os(iOS)
+      if #available(iOS 17.0, *) {
+        switch AVAudioApplication.shared.recordPermission {
+        case .granted:
+          granted = true
+          status = .granted
+        case .denied:
+          granted = false
+          status = .denied
+        case .undetermined:
+          granted = false
+          status = .undetermined
+        @unknown default:
+          granted = false
+          status = .undetermined
+        }
+      } else {
+        switch AVAudioSession.sharedInstance().recordPermission {
+        case .granted:
+          granted = true
+          status = .granted
+        case .denied:
+          granted = false
+          status = .denied
+        case .undetermined:
+          granted = false
+          status = .undetermined
+        @unknown default:
+          granted = false
+          status = .undetermined
+        }
+      }
+      #else
+      // macOS: 使用 AVCaptureDevice 检查麦克风权限状态
+      switch AVCaptureDevice.authorizationStatus(for: .audio) {
+      case .authorized:
         granted = true
         status = .granted
       case .denied:
         granted = false
         status = .denied
-      case .undetermined:
+      case .notDetermined:
         granted = false
         status = .undetermined
+      case .restricted:
+        granted = false
+        status = .denied
       @unknown default:
         granted = false
         status = .undetermined
       }
+      #endif
     }
 
     return permissionResponse(
